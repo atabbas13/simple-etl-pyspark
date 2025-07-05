@@ -1,0 +1,11 @@
+version: '3.8'
+
+services:
+  spark:
+    build: ./spark-app
+    container_name: spark-etl
+    volumes:
+      - ../data:/app/data
+    environment:
+      - PYSPARK_PYTHON=python3
+    command: ["spark-submit", "--master", "local[*]", "main.py"]
