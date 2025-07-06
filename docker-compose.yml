@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  spark:
+    image: bitnami/spark:3.5
+    container_name: spark
+    volumes:
+      - .:/app
+      - ./jars:/opt/spark/jars
+    working_dir: /app
+    environment:
+      - HOME=/tmp
+    depends_on:
+      - postgres
+    command: >
+      bash -c "sleep 10 && spark-submit --jars /opt/spark/jars/postgresql-42.6.0.jar main.py"
+
+  postgres:
+    image: postgres:15
+    container_name: postgres
+    restart: always
+    environment:
+      POSTGRES_USER: sparkuser
+      POSTGRES_PASSWORD: sparkpass
+      POSTGRES_DB: sparkdb
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./sql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+
+volumes:
+  pgdata:
