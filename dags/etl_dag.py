@@ -1,6 +1,6 @@
 from datetime import datetime
 from airflow import DAG
-from airflow.providers.docker.operators.docker import DockerOperator
+from airflow.operators.bash import BashOperator
 
 default_args = {
     'owner': 'airflow',
@@ -11,22 +11,15 @@ default_args = {
 with DAG(
     dag_id='spark_etl_pipeline',
     default_args=default_args,
-    schedule_interval=None,
+    schedule_interval=None,  # Set to '0 12 * * *' for daily at noon
     catchup=False,
     tags=['spark', 'etl'],
+    description='Run PySpark ETL job inside Docker Spark container'
 ) as dag:
 
-    run_etl = DockerOperator(
+    run_etl = BashOperator(
         task_id='run_spark_etl',
-        image='bitnami/spark:3.5',
-        container_name='spark_etl_runner',
-        command='spark-submit --jars /opt/spark/jars/postgresql-42.6.0.jar /app/main.py',
-        auto_remove=True,
-        volumes=[
-            '/full/path/to/your/project:/app',
-            '/full/path/to/your/project/jars:/opt/spark/jars'
-        ],
-        network_mode='bridge'  # or 'host' if needed
+        bash_command='docker exec spark spark-submit --jars /opt/spark/jars/postgresql-42.6.0.jar /app/main.py'
     )
 
     run_etl
