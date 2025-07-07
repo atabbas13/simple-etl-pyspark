@@ -1,20 +1,10 @@
 version: '3.8'
 
 services:
-  spark:
-    image: bitnami/spark:3.5
-    container_name: spark
-    volumes:
-      - .:/app
-      - ./jars:/opt/spark/jars
-    working_dir: /app
-    environment:
-      - HOME=/tmp
-    depends_on:
-      - postgres
-    command: >
-      bash -c "sleep 10 && spark-submit --jars /opt/spark/jars/postgresql-42.6.0.jar main.py"
 
+  # -----------------------------------
+  # PostgreSQL Database
+  # -----------------------------------
   postgres:
     image: postgres:15
     container_name: postgres
@@ -28,6 +18,76 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./sql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+
+  # -----------------------------------
+  # Spark for ETL
+  # -----------------------------------
+  spark:
+    image: bitnami/spark:3.5
+    container_name: spark
+    volumes:
+      - .:/app
+      - ./jars:/opt/spark/jars
+    working_dir: /app
+    depends_on:
+      - postgres
+
+  # -----------------------------------
+  # Airflow Services
+  # -----------------------------------
+  airflow-init:
+    image: apache/airflow:2.9.1
+    container_name: airflow-init
+    depends_on:
+      - postgres
+    environment:
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://sparkuser:sparkpass@postgres:5432/sparkdb
+    command: db init
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./logs:/opt/airflow/logs
+  airflow-webserver:
+    image: apache/airflow:2.9.1
+    container_name: airflow-webserver
+    depends_on:
+      - airflow-scheduler
+      - postgres
+    environment:
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+      - AIRFLOW__CORE__FERNET_KEY=MyFerNetKey00000000000000000000000=
+      - AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION=false
+      - AIRFLOW__CORE__LOAD_EXAMPLES=false
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://sparkuser:sparkpass@postgres:5432/sparkdb
+      - _AIRFLOW_WWW_USER_CREATE=True
+      - _AIRFLOW_WWW_USER_USERNAME=admin
+      - _AIRFLOW_WWW_USER_PASSWORD=admin
+      - _AIRFLOW_WWW_USER_ROLE=Admin
+      - _AIRFLOW_WWW_USER_EMAIL=atabbas13@gmail.com
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./logs:/opt/airflow/logs
+    ports:
+      - "8080:8080"
+    command: webserver
+
+  airflow-scheduler:
+    image: apache/airflow:2.9.1
+    container_name: airflow-scheduler
+    depends_on:
+      - postgres
+    environment:
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://sparkuser:sparkpass@postgres:5432/sparkdb
+      - _AIRFLOW_WWW_USER_CREATE=True
+      - _AIRFLOW_WWW_USER_USERNAME=admin
+      - _AIRFLOW_WWW_USER_PASSWORD=admin
+      - _AIRFLOW_WWW_USER_ROLE=Admin
+      - _AIRFLOW_WWW_USER_EMAIL=atabbas13@gmail.com
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./logs:/opt/airflow/logs
+    command: scheduler
 
 volumes:
   pgdata:
